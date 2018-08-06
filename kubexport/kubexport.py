@@ -138,7 +138,7 @@ class Kubexport(object):
     def start(self):
 
         if self.has_args('--cluster-recommended-resources'):
-            export_cluster_resources(CLUSTER_LVL_RESOURCES)
+            self.export_cluster_resources(CLUSTER_LVL_RESOURCES)
 
         cmd = list()
         cmd.append(BASE_COMMAND)
@@ -157,7 +157,7 @@ class Kubexport(object):
                 .replace("namespaces/", "").split()
         return []
 
-    def export_cluster_resources(self):
+    def export_cluster_resources(self, resources):
         pass
 
     def has_args(self, *args):
