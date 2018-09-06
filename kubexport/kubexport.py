@@ -112,18 +112,15 @@ Examples:
 """
 
 import sys
+import os
 import shutil
 from docopt import docopt
 from .console_logger import ColorPrint
+from .string_utils import StringUtils
 from subprocess import Popen, PIPE
 
 __version__ = '0.0.1'
 
-CLUSTER_LVL_RESOURCES=['roles', 'rolebindings', 'clusterrolebindings', 'clusterroles', 'namespaces', 'pv', 'nodes',
-                       'Storageclass', 'serviceaccounts']
-SENSITIVE_RESOURCES=['secret']
-RESOURCES=['cronjob', 'daemonset', 'deployment', 'job', 'pvc', 'configmap', 'serviceaccount', 'ingress',
-           'service', 'statefulset', 'hpa']
 BASE_COMMAND = ['kubectl', 'get']
 
 
@@ -136,10 +133,16 @@ class Kubexport(object):
         Kubexport.check_kubernetes()
 
     def start(self):
+        if self.has_args('show-api-resources'):
+            Kubexport.print_api_resoures()
 
-        if self.has_args('--cluster-recommended-resources'):
-            self.export_cluster_resources(CLUSTER_LVL_RESOURCES)
+        self.validate_output_format()
+        self.check_directory()
 
+        if self.has_args('--resources'):
+            self.export_resources()
+
+        print(self.args)
         cmd = list()
         cmd.append(BASE_COMMAND)
 
@@ -153,12 +156,65 @@ class Kubexport(object):
             s = self.args['--namespaces']
             return (s[1:] if s.startswith('=') else s).split(',')
         elif self.has_args('--all-namespaces'):
-            return Kubexport.run_script_with_check(cmd=[BASE_COMMAND, "get", "-o=name", "namespaces"])\
+            return Kubexport.run_script_with_check(cmd=[BASE_COMMAND, "-o=name", "namespaces"])\
                 .replace("namespaces/", "").split()
         return []
 
-    def export_cluster_resources(self, resources):
-        pass
+    def export_resources(self):
+        res = self.args['--resources']
+        resources = (res[1:] if res.startswith('=') else res).split(',')
+        cluster_res = Kubexport.get_resources(False, False)
+        namespace_res = Kubexport.get_resources(True, False)
+
+        for resource in resources:
+            if resource in cluster_res:
+                Kubexport.export_cluster_resource(resource)
+            elif resource in namespace_res:
+                Kubexport.export_namespace_resource(resource)
+            else:
+                ColorPrint.print_warning("Not found resource: " + str(resource))
+
+    @staticmethod
+    def export_cluster_resource(resource):
+        ColorPrint.print_info("CLUSTER " + resource)
+
+    @staticmethod
+    def export_namespace_resource(resource):
+        ColorPrint.print_info("NON CLUSTER " + resource)
+
+    @staticmethod
+    def print_api_resoures():
+        ColorPrint.print_info("Namespaced resources: ")
+        ColorPrint.print_info(Kubexport.get_resources(namespaced=True, wide=True))
+        ColorPrint.print_info("Resources without namespace: ")
+        ColorPrint.print_info(Kubexport.get_resources(namespaced=False, wide=True))
+        sys.exit()
+
+    @staticmethod
+    def get_resources(namespaced, wide):
+        cmd = ["kubectl", "api-resources"]
+        cmd.append("-o")
+        cmd.append("wide" if wide else "name")
+        cmd.append("--namespaced=" + "true" if namespaced else "false")
+        return Kubexport.run_script_with_check(cmd=cmd)
+
+    def check_directory(self):
+        export_dir = os.path.join(os.getcwd(), 'export')
+        exists = os.path.exists(export_dir)
+        if exists and os.path.isfile(export_dir):
+            ColorPrint.exit_after_print_messages("'export' file exists in current directory.")
+
+        if exists and not self.args['--keep-original']:
+            shutil.rmtree(export_dir)
+
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+            return
+
+    def validate_output_format(self):
+        if self.args['--output'] not in ['yaml', 'json']:
+            ColorPrint.print_error(message="Wrong output format, use default 'yaml' instead.")
+            self.args['--output'] = 'yaml'
 
     def has_args(self, *args):
         for arg in args:
@@ -176,12 +232,17 @@ class Kubexport(object):
 
     @staticmethod
     def check_kubernetes():
-        command="kubectl version --short"
+        command = "kubectl version --short --client"
         p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
         out, err = p.communicate()
         if not len(err) == 0 or len(out) == 0:
             ColorPrint.exit_after_print_messages(message=str(err).strip())
         ColorPrint.print_with_lvl(message="Kubernetes\n " + str(out).strip(), lvl=1)
+        client_version = StringUtils.get_value_after_colon(out)
+        if client_version is None:
+            ColorPrint.exit_after_print_messages(message="Cannot fetch client version from: " + str(out).strip())
+        if client_version < "v1.11.0":
+            ColorPrint.exit_after_print_messages(message="Minimum client version is 1.11.0")
 
 
 def main():
