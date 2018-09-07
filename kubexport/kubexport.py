@@ -127,6 +127,7 @@ BASE_COMMAND = ['kubectl', 'get']
 class Kubexport(object):
 
     args = None
+    export_dir = None
 
     def __init__(self, argv=sys.argv[1:]):
         self.args = docopt(__doc__, version=__version__,  argv=argv)
@@ -168,18 +169,23 @@ class Kubexport(object):
 
         for resource in resources:
             if resource in cluster_res:
-                Kubexport.export_cluster_resource(resource)
+                self.export_cluster_resource(resource)
             elif resource in namespace_res:
-                Kubexport.export_namespace_resource(resource)
+                self.export_namespace_resource(resource)
             else:
                 ColorPrint.print_warning("Not found resource: " + str(resource))
 
-    @staticmethod
-    def export_cluster_resource(resource):
+    def export_cluster_resource(self, resource):
         ColorPrint.print_info("CLUSTER " + resource)
+        cmd = BASE_COMMAND
+        cmd.append("-o")
+        cmd.append(self.args["--output"])
+        cmd.append(resource)
+        cmd.append("--export=true")
+        with open(os.path.join(self.export_dir, resource + '.' + self.args["--output"]), 'w') as file:
+            file.write(Kubexport.run_script_with_check(cmd=cmd))
 
-    @staticmethod
-    def export_namespace_resource(resource):
+    def export_namespace_resource(self, resource):
         ColorPrint.print_info("NON CLUSTER " + resource)
 
     @staticmethod
@@ -199,16 +205,16 @@ class Kubexport(object):
         return Kubexport.run_script_with_check(cmd=cmd)
 
     def check_directory(self):
-        export_dir = os.path.join(os.getcwd(), 'export')
-        exists = os.path.exists(export_dir)
-        if exists and os.path.isfile(export_dir):
+        self.export_dir = os.path.join(os.getcwd(), 'export')
+        exists = os.path.exists(self.export_dir)
+        if exists and os.path.isfile(self.export_dir):
             ColorPrint.exit_after_print_messages("'export' file exists in current directory.")
 
         if exists and not self.args['--keep-original']:
-            shutil.rmtree(export_dir)
+            shutil.rmtree(self.export_dir)
 
-        if not os.path.exists(export_dir):
-            os.makedirs(export_dir)
+        if not os.path.exists(self.export_dir):
+            os.makedirs(self.export_dir)
             return
 
     def validate_output_format(self):
