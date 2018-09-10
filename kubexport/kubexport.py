@@ -121,13 +121,10 @@ from subprocess import Popen, PIPE
 
 __version__ = '0.0.1'
 
-BASE_COMMAND = ['kubectl', 'get']
-
-
 class Kubexport(object):
 
     args = None
-    export_dir = None
+    checked_directory = []
 
     def __init__(self, argv=sys.argv[1:]):
         self.args = docopt(__doc__, version=__version__,  argv=argv)
@@ -138,14 +135,13 @@ class Kubexport(object):
             Kubexport.print_api_resoures()
 
         self.validate_output_format()
-        self.check_directory()
 
         if self.has_args('--resources'):
             self.export_resources()
 
         print(self.args)
         cmd = list()
-        cmd.append(BASE_COMMAND)
+        cmd.append(['kubectl', 'get'])
 
         namespaces = self.get_namespaces()
         if len(namespaces) > 0:
@@ -157,7 +153,7 @@ class Kubexport(object):
             s = self.args['--namespaces']
             return (s[1:] if s.startswith('=') else s).split(',')
         elif self.has_args('--all-namespaces'):
-            return Kubexport.run_script_with_check(cmd=[BASE_COMMAND, "-o=name", "namespaces"])\
+            return Kubexport.run_script_with_check(cmd=['kubectl', 'get', "-o=name", "namespaces"])\
                 .replace("namespaces/", "").split()
         return []
 
@@ -177,23 +173,30 @@ class Kubexport(object):
 
     def export_cluster_resource(self, resource):
         ColorPrint.print_info("CLUSTER " + resource)
-        cmd = BASE_COMMAND
-        cmd.append("-o")
-        cmd.append(self.args["--output"])
+
+        cmd = ['kubectl', 'get']
+        cmd.append("-o=name")
         cmd.append(resource)
-        cmd.append("--export=true")
-        with open(os.path.join(self.export_dir, resource + '.' + self.args["--output"]), 'w') as file:
-            file.write(Kubexport.run_script_with_check(cmd=cmd))
+        for row in Kubexport.run_script_with_check(cmd=cmd).split('\n'):
+            self.check_directory(row)
+
+            cmd = ['kubectl', 'get']
+            cmd.append("-o")
+            cmd.append(self.args["--output"])
+            cmd.append(str(row))
+            cmd.append("--export=true")
+            with open(os.path.join(os.getcwd(), str(row) + '.' + self.args["--output"]), 'w') as file:
+                file.write(Kubexport.run_script_with_check(cmd=cmd))
 
     def export_namespace_resource(self, resource):
         ColorPrint.print_info("NON CLUSTER " + resource)
 
     @staticmethod
     def print_api_resoures():
+        ColorPrint.print_info("Cluster level resources: ")
+        ColorPrint.print_info(Kubexport.get_resources(namespaced=False, wide=True))
         ColorPrint.print_info("Namespaced resources: ")
         ColorPrint.print_info(Kubexport.get_resources(namespaced=True, wide=True))
-        ColorPrint.print_info("Resources without namespace: ")
-        ColorPrint.print_info(Kubexport.get_resources(namespaced=False, wide=True))
         sys.exit()
 
     @staticmethod
@@ -204,18 +207,28 @@ class Kubexport(object):
         cmd.append("--namespaced=" + "true" if namespaced else "false")
         return Kubexport.run_script_with_check(cmd=cmd)
 
-    def check_directory(self):
-        self.export_dir = os.path.join(os.getcwd(), 'export')
-        exists = os.path.exists(self.export_dir)
-        if exists and os.path.isfile(self.export_dir):
-            ColorPrint.exit_after_print_messages("'export' file exists in current directory.")
+    def check_directory(self, row):
+        chunks = row.split("/")
 
-        if exists and not self.args['--keep-original']:
-            shutil.rmtree(self.export_dir)
+        dir = ""
+        chunks.reverse()
+        while len(chunks) > 1:
+            dir += chunks.pop() if len(dir) == 0 else "/" + chunks.pop()
 
-        if not os.path.exists(self.export_dir):
-            os.makedirs(self.export_dir)
-            return
+            if dir in self.checked_directory:
+                continue
+            directory = os.path.join(os.getcwd(), dir)
+            exists = os.path.exists(directory)
+            if exists and os.path.isfile(directory):
+                ColorPrint.exit_after_print_messages("'" + directory + "' file exists in current directory.")
+
+            if exists and not self.args['--keep-original']:
+                shutil.rmtree(directory)
+
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+            self.checked_directory.append(dir)
 
     def validate_output_format(self):
         if self.args['--output'] not in ['yaml', 'json']:
