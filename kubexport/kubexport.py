@@ -131,6 +131,8 @@ class Kubexport(object):
         Kubexport.check_kubernetes()
 
     def start(self):
+        print(self.args)
+
         if self.has_args('show-api-resources'):
             Kubexport.print_api_resoures()
 
@@ -139,29 +141,18 @@ class Kubexport(object):
         if self.has_args('--resources'):
             self.export_resources()
 
-        print(self.args)
-        cmd = list()
-        cmd.append(['kubectl', 'get'])
-
-        namespaces = self.get_namespaces()
-        if len(namespaces) > 0:
-            for namespace in namespaces:
-                pass
-
     def get_namespaces(self):
         if self.has_args('--namespaces'):
             s = self.args['--namespaces']
             return (s[1:] if s.startswith('=') else s).split(',')
-        elif self.has_args('--all-namespaces'):
-            return Kubexport.run_script_with_check(cmd=['kubectl', 'get', "-o=name", "namespaces"])\
-                .replace("namespaces/", "").split()
-        return []
+        return Kubexport.run_script_with_check(cmd=['kubectl', 'get', "-o=name", "namespaces"])\
+            .replace("namespace/", "").split()
 
     def export_resources(self):
         res = self.args['--resources']
         resources = (res[1:] if res.startswith('=') else res).split(',')
-        cluster_res = Kubexport.get_resources(False, False)
-        namespace_res = Kubexport.get_resources(True, False)
+        cluster_res = Kubexport.get_resources(False, False).split()
+        namespace_res = Kubexport.get_resources(True, False).split()
 
         for resource in resources:
             if resource in cluster_res:
@@ -191,6 +182,28 @@ class Kubexport(object):
     def export_namespace_resource(self, resource):
         ColorPrint.print_info("NON CLUSTER " + resource)
 
+        namespaces = self.get_namespaces()
+        if len(namespaces) > 0:
+            for namespace in namespaces:
+                self.check_directory(namespace)
+                cmd = ['kubectl', 'get']
+                cmd.append("-o=name")
+                cmd.append(resource)
+                cmd.append("-n="+namespace)
+                for row in Kubexport.run_script_with_check(cmd=cmd).split('\n'):
+                    if len(row) is 0:
+                        continue
+                    dir = namespace + "/" + row
+                    self.check_directory(dir)
+                    cmd = ['kubectl', 'get']
+                    cmd.append("-o")
+                    cmd.append(self.args["--output"])
+                    cmd.append(str(row))
+                    cmd.append("--export=true")
+                    cmd.append("-n=" + namespace)
+                    with open(os.path.join(os.getcwd(), str(dir) + '.' + self.args["--output"]), 'w') as file:
+                        file.write(Kubexport.run_script_with_check(cmd=cmd))
+
     @staticmethod
     def print_api_resoures():
         ColorPrint.print_info("Cluster level resources: ")
@@ -204,7 +217,7 @@ class Kubexport(object):
         cmd = ["kubectl", "api-resources"]
         cmd.append("-o")
         cmd.append("wide" if wide else "name")
-        cmd.append("--namespaced=" + "true" if namespaced else "false")
+        cmd.append("--namespaced=true" if namespaced else "--namespaced=false")
         return Kubexport.run_script_with_check(cmd=cmd)
 
     def check_directory(self, row):
