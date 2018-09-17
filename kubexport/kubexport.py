@@ -160,8 +160,9 @@ class Kubexport(object):
 
     def export_cluster_resources(self):
         for resource in Kubexport.get_resources(False, False).split():
-            print(resource)
-            # self.export_cluster_resource(resource=resource)
+            if resource == "namespaces":
+                continue
+            self.export_cluster_resource(resource=resource)
 
     def export_namespace_resources(self):
         for resource in Kubexport.get_resources(True, False).split():
@@ -188,7 +189,10 @@ class Kubexport(object):
         cmd = ['kubectl', 'get']
         cmd.append("-o=name")
         cmd.append(resource)
-        for row in Kubexport.run_script_with_check(cmd=cmd).split('\n'):
+        elements = Kubexport.run_script_with_check(cmd=cmd)[0]
+        if len(elements) == 0:
+            return
+        for row in elements.split('\n'):
             self.check_directory(row)
 
             cmd = ['kubectl', 'get']
@@ -197,7 +201,14 @@ class Kubexport(object):
             cmd.append(str(row))
             cmd.append("--export=true")
             with open(os.path.join(os.getcwd(), str(row) + '.' + self.args["--output"]), 'w') as file:
-                file.write(Kubexport.run_script_with_check(cmd=cmd))
+                result = Kubexport.run_script_with_check(cmd=cmd)
+                if len(result[1]) > 0:
+                    if "Error from server (BadRequest): export of " in result[1]:
+                        cmd.remove(cmd[-1])
+                        result = Kubexport.run_script_with_check(cmd=cmd)
+                    else:
+                        ColorPrint.print_error("Export not possible from: " + str(row) + "\n" + str(result[1]).strip())
+                file.write(result[0])
 
     def export_namespace_resource(self, resource):
         ColorPrint.print_info("NON CLUSTER " + resource)
@@ -248,7 +259,7 @@ class Kubexport(object):
         cmd.append("-o")
         cmd.append("wide" if wide else "name")
         cmd.append("--namespaced=true" if namespaced else "--namespaced=false")
-        return Kubexport.run_script_with_check(cmd=cmd)
+        return Kubexport.run_script_with_check(cmd=cmd)[0]
 
     def check_directory(self, row):
         chunks = row.split("/")
@@ -266,7 +277,8 @@ class Kubexport(object):
                 ColorPrint.exit_after_print_messages("'" + directory + "' file exists in current directory.")
 
             if exists and not self.args['--keep-original']:
-                shutil.rmtree(directory)
+                print("DELETE " + str(directory))
+                #shutil.rmtree(directory)
 
             if not os.path.exists(directory):
                 os.makedirs(directory)
@@ -288,9 +300,9 @@ class Kubexport(object):
     def run_script_with_check(cmd):
         p = Popen(" ".join(cmd), stdout=PIPE, stderr=PIPE, shell=True)
         out, err = p.communicate()
-        if not len(err) == 0:
-            ColorPrint.exit_after_print_messages(message=str(err).strip())
-        return out.strip()
+        #if not len(err) == 0:
+        #    ColorPrint.print_error(message=str(err).strip())
+        return out.strip(), err.strip()
 
     @staticmethod
     def check_kubernetes():
