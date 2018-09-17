@@ -121,6 +121,7 @@ from subprocess import Popen, PIPE
 
 __version__ = '0.0.1'
 
+
 class Kubexport(object):
 
     args = None
@@ -140,6 +141,15 @@ class Kubexport(object):
 
         if self.has_args('--resources'):
             self.export_resources()
+        elif self.has_args('--all-cluster-resources'):
+            self.export_cluster_resources()
+        elif self.has_args('--all-resources'):
+            self.export_cluster_resources()
+            self.export_namespace_resources()
+        elif self.has_args('--cluster-recommended-resources'):
+            pass
+        elif self.has_args('--recommended-resources'):
+            pass
 
     def get_namespaces(self):
         if self.has_args('--namespaces'):
@@ -147,6 +157,16 @@ class Kubexport(object):
             return (s[1:] if s.startswith('=') else s).split(',')
         return Kubexport.run_script_with_check(cmd=['kubectl', 'get', "-o=name", "namespaces"])\
             .replace("namespace/", "").split()
+
+    def export_cluster_resources(self):
+        for resource in Kubexport.get_resources(False, False).split():
+            print(resource)
+            # self.export_cluster_resource(resource=resource)
+
+    def export_namespace_resources(self):
+        for resource in Kubexport.get_resources(True, False).split():
+            print(resource)
+            # self.export_namespace_resource(resource=resource)
 
     def export_resources(self):
         res = self.args['--resources']
@@ -185,6 +205,16 @@ class Kubexport(object):
         namespaces = self.get_namespaces()
         if len(namespaces) > 0:
             for namespace in namespaces:
+                self.check_directory("namespace/" + namespace)
+                cmd = ['kubectl', 'get']
+                cmd.append("namespace/" + namespace)
+                cmd.append("-o")
+                cmd.append(self.args["--output"])
+                cmd.append("--export=true")
+                with open(os.path.join(os.getcwd(), str("namespace/" + namespace) + '.' +
+                        self.args["--output"]), 'w') as file:
+                    file.write(Kubexport.run_script_with_check(cmd=cmd))
+
                 self.check_directory(namespace)
                 cmd = ['kubectl', 'get']
                 cmd.append("-o=name")
@@ -193,15 +223,15 @@ class Kubexport(object):
                 for row in Kubexport.run_script_with_check(cmd=cmd).split('\n'):
                     if len(row) is 0:
                         continue
-                    dir = namespace + "/" + row
-                    self.check_directory(dir)
+                    target_dir = "namespace/" + namespace + "/" + row
+                    self.check_directory(target_dir)
                     cmd = ['kubectl', 'get']
                     cmd.append("-o")
                     cmd.append(self.args["--output"])
                     cmd.append(str(row))
                     cmd.append("--export=true")
                     cmd.append("-n=" + namespace)
-                    with open(os.path.join(os.getcwd(), str(dir) + '.' + self.args["--output"]), 'w') as file:
+                    with open(os.path.join(os.getcwd(), str(target_dir) + '.' + self.args["--output"]), 'w') as file:
                         file.write(Kubexport.run_script_with_check(cmd=cmd))
 
     @staticmethod
