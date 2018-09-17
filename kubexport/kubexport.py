@@ -68,6 +68,8 @@ Options:
                  Examples:
                           kube-export -o=json
 
+    -v --verbose      Print more text.
+    -q --quiet        Print less text.
     --version    Show version
     -h, --help   Show help message
 
@@ -115,7 +117,7 @@ import sys
 import os
 import shutil
 from docopt import docopt
-from .console_logger import ColorPrint
+from .console_logger import ColorPrint, Colors
 from .string_utils import StringUtils
 from subprocess import Popen, PIPE
 
@@ -130,6 +132,7 @@ class Kubexport(object):
     def __init__(self, argv=sys.argv[1:]):
         self.args = docopt(__doc__, version=__version__,  argv=argv)
         Kubexport.check_kubernetes()
+        ColorPrint.set_log_level(self.args)
 
     def start(self):
         print(self.args)
@@ -155,7 +158,7 @@ class Kubexport(object):
         if self.has_args('--namespaces'):
             s = self.args['--namespaces']
             return (s[1:] if s.startswith('=') else s).split(',')
-        return Kubexport.run_script_with_check(cmd=['kubectl', 'get', "-o=name", "namespaces"])\
+        return Kubexport.run_script_with_check(cmd=['kubectl', 'get', "-o=name", "namespaces"])[0]\
             .replace("namespace/", "").split()
 
     def export_cluster_resources(self):
@@ -223,15 +226,15 @@ class Kubexport(object):
                 cmd.append("--export=true")
                 with open(os.path.join(os.getcwd(), str("namespace/" + namespace) + '.' +
                         self.args["--output"]), 'w') as file:
-                    file.write(Kubexport.run_script_with_check(cmd=cmd))
+                    file.write(Kubexport.run_script_with_check(cmd=cmd)[0])
 
                 self.check_directory(namespace)
                 cmd = ['kubectl', 'get']
                 cmd.append("-o=name")
                 cmd.append(resource)
                 cmd.append("-n="+namespace)
-                for row in Kubexport.run_script_with_check(cmd=cmd).split('\n'):
-                    if len(row) is 0:
+                for row in Kubexport.run_script_with_check(cmd=cmd)[0].split('\n'):
+                    if len(row) == 0:
                         continue
                     target_dir = "namespace/" + namespace + "/" + row
                     self.check_directory(target_dir)
@@ -242,7 +245,7 @@ class Kubexport(object):
                     cmd.append("--export=true")
                     cmd.append("-n=" + namespace)
                     with open(os.path.join(os.getcwd(), str(target_dir) + '.' + self.args["--output"]), 'w') as file:
-                        file.write(Kubexport.run_script_with_check(cmd=cmd))
+                        file.write(Kubexport.run_script_with_check(cmd=cmd)[0])
 
     @staticmethod
     def print_api_resoures():
@@ -298,8 +301,8 @@ class Kubexport(object):
     def run_script_with_check(cmd):
         p = Popen(" ".join(cmd), stdout=PIPE, stderr=PIPE, shell=True)
         out, err = p.communicate()
-        #if not len(err) == 0:
-        #    ColorPrint.print_error(message=str(err).strip())
+        if not len(err) == 0:
+            ColorPrint.print_with_lvl(message=str(err).strip(), lvl=1, color=Colors.FAIL)
         return out.strip(), err.strip()
 
     @staticmethod
