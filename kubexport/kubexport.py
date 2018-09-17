@@ -166,8 +166,7 @@ class Kubexport(object):
 
     def export_namespace_resources(self):
         for resource in Kubexport.get_resources(True, False).split():
-            print(resource)
-            # self.export_namespace_resource(resource=resource)
+            self.export_namespace_resource(resource=resource)
 
     def export_resources(self):
         res = self.args['--resources']
@@ -277,8 +276,7 @@ class Kubexport(object):
                 ColorPrint.exit_after_print_messages("'" + directory + "' file exists in current directory.")
 
             if exists and not self.args['--keep-original']:
-                print("DELETE " + str(directory))
-                #shutil.rmtree(directory)
+                shutil.rmtree(directory)
 
             if not os.path.exists(directory):
                 os.makedirs(directory)
