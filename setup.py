@@ -13,9 +13,9 @@ if sys.version_info[0] < 3:
 class PyTestCommand(TestCommand):
     """Run py.test unit tests"""
 
-    def finaalize_options(self):
+    def finalize_options(self):
         TestCommand.finalize_options(self)
-        self.test_args = ['--verbose', '--cov', 'kube-export']
+        self.test_args = ['--verbose', '--cov', 'kubeexport']
         self.test_suite = True
 
     def run(self):
