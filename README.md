@@ -1,15 +1,15 @@
-# KUBEXPORT
+# KUBE-EXPORT
 
-**Kubexport** export Kubernetes resources in structured  yaml or json files.
+**Kube-export** export Kubernetes resources in structured  yaml or json files.
    Exported resources are stripped of timebased information.
 
 ## Requirements
  - **kubectl**
 
 ## Quick start
-Install `kubexport`:
+Install `kube-export`:
 ```
-$:~ pip install kubexport
+$:~ pip install kube-export
 ```
 
 ## Licence

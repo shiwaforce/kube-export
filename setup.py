@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import kubexport
+import kubeexport
 import sys
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
@@ -15,7 +15,7 @@ class PyTestCommand(TestCommand):
 
     def finaalize_options(self):
         TestCommand.finalize_options(self)
-        self.test_args = ['--verbose', '--cov', 'kubexport']
+        self.test_args = ['--verbose', '--cov', 'kube-export']
         self.test_suite = True
 
     def run(self):
@@ -24,11 +24,10 @@ class PyTestCommand(TestCommand):
         sys.exit(rcode)
 
 setup_options = dict(
-    name='kubexport',
-    version=kubexport.__version__,
+    name='kube-export',
+    version=kubeexport.__version__,
     description='Kubernetes export tool. Export Kubernetes resources in structured  yaml or json files.',
     long_description=open('README.md').read(),
-    long_description_content_type="text/markdown",
     author='Shiwaforce.com',
     url='https://www.shiwaforce.com',
     packages=find_packages(exclude=['tests*']),
@@ -36,7 +35,7 @@ setup_options = dict(
     tests_require=test_requires,
     cmdclass={'test': PyTestCommand},
     entry_points={
-      'console_scripts': ['kube-export=kubexport.kubexport:main'],
+      'console_scripts': ['kube-export=kubeexport.kubeexport:main'],
     },
     license="MIT",
     classifiers=(

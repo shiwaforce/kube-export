@@ -1,7 +1,7 @@
 import sys
 import unittest
 from contextlib import contextmanager
-import kubexport.kubexport as kubexport
+import kubeexport.kubeexport as kubeexport
 try:
     from StringIO import StringIO
 except ImportError:
@@ -15,7 +15,7 @@ class ProcoTestSuite(unittest.TestCase):
             with self.assertRaises(SystemExit) as context:
                 self.run_command('-h')
             self.assertIsNotNone(context.exception)
-        self.assertIn(kubexport.__doc__.strip(), out.getvalue().strip())
+        self.assertIn(kubeexport.__doc__.strip(), out.getvalue().strip())
 
     @contextmanager
     def captured_output(self):
@@ -28,5 +28,5 @@ class ProcoTestSuite(unittest.TestCase):
             sys.stdout, sys.stderr = old_out, old_err
 
     def run_command(self, *args):
-        runnable = kubexport.Kubexport(argv=list(args))
+        runnable = kubeexport.Kubexport(argv=list(args))
         runnable.start()
