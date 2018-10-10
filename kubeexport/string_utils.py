@@ -11,6 +11,7 @@ class StringUtils(object):
 
     @staticmethod
     def get_value_after_colon(text):
+        text = str(text)
         if text is None:
             return None
         colon_index = text.find(':')
